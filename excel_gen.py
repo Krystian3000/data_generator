@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 
+np.random.seed(69)
+
 class excel_generator:
 
     _Security_satisfaction : list
@@ -14,7 +16,7 @@ class excel_generator:
 
     def __init__(self, tickets : pd.DataFrame):
         
-        size = len(tickets)
+        size = int(len(tickets))
 
         self._Security_satisfaction = self._gen_ratings(size)
         self._Information_satisfaction = self._gen_ratings(size)
@@ -23,7 +25,7 @@ class excel_generator:
         self._Check_in_satisfaction = self._gen_ratings(size)
 
         self._ID = list(range(size))
-        self._TicketsID = tickets.index.values
+        self._TicketsID = np.random.choice(tickets.index.values.tolist(), size=size)
 
             
     def _gen_ratings(self, size):

@@ -18,22 +18,11 @@ from excel_gen import excel_generator
 import threading 
 
 
-BIRTH_BEGIN = datetime.date(1965,1,1)
-BIRTH_END = datetime.date(2022,3,10)
-
-EXP_BEGIN = datetime.date(2022,4,1)
-EXP_END = datetime.date(2035,1,1)
-
-FLIGHTS_BEGIN = datetime.datetime.strptime('1/1/1990 1:30 PM', '%m/%d/%Y %I:%M %p')
-FLIGHTS_END = datetime.datetime.strptime('3/19/2022 4:50 AM', '%m/%d/%Y %I:%M %p')
-
-
+AVG_PEOPLE_PER_FLIGHT = 100
 AIRLINES = ['Air France','WizzAir','RyanAir','Etihad Airlines','United Airlines']
 WEIGHTS = [0.4,0.25,0.05,0.1,0.2]
 
-AVG_PEOPLE_PER_FLIGHT = 100
-
-random.seed(69)
+np.random.seed(69)
 
 class data_generator:
     '''Generator creates 1 000 000 entires for tables in AFIS database. For each table data_generator
@@ -51,18 +40,38 @@ class data_generator:
 
     _flight_time: dict
 
-    def __init__(self):
-        self._destinations = self._init_dest()
-        self._passport_details = self._init_pass()
-        self._flight_information = self._init_fi()
-        self._flight_attendant = self._init_fa()
-        self._tickets = self._init_ticket()
-        
-        print('done')
-        excel = excel_generator(self._tickets)
-        self._questionnaireData = excel.generate_df()
-        print('excel done')
-        self._process_dataframes()
+
+    def __init__(self, type_):
+        if type_ not in [1,2]:
+            raise ValueError('Incorrect version')
+        else:
+            self._typeofdata = type_
+            self._BIRTH_BEGIN = datetime.date(1965,1,1)
+            self._EXP_BEGIN = datetime.date(2022,4,1)
+            self._FLIGHTS_BEGIN = datetime.datetime.strptime('1/1/1990 1:30 PM', '%m/%d/%Y %I:%M %p')
+
+            if type_==1:
+                self._BIRTH_END = datetime.date(2008,3,10)
+                self._EXP_END = datetime.date(2028,1,1)
+                self._FLIGHTS_END = datetime.datetime.strptime('3/19/2008 4:50 AM', '%m/%d/%Y %I:%M %p')
+            elif type_==2:
+                self._BIRTH_END = datetime.date(2022,3,10)
+                self._EXP_END = datetime.date(2038,1,1)
+                self._FLIGHTS_END = datetime.datetime.strptime('3/19/2022 4:50 AM', '%m/%d/%Y %I:%M %p')
+
+            self._destinations = self._init_dest()
+            self._passport_details = self._init_pass()
+            self._flight_information = self._init_fi()
+            self._flight_attendant = self._init_fa()
+            self._tickets = self._init_ticket()
+            self._tickets["Class"] = self._tickets["Class"].astype("category")
+
+            print('done')
+            excel = excel_generator(self._tickets)
+            self._questionnaireData = excel.generate_df()
+            print('excel done')
+            self._process_dataframes()
+
 
     @property
     def destination(self):
@@ -109,13 +118,9 @@ class data_generator:
         keys = ['Passport_Details_ID','Flight_Information_ID']
 
         data_dict = {}
-
-        for i in range(len(self._passport_details)):
-            if i%10==0:
-                fk_p.append(random.randint(1,len(self._passport_details)))
-            else:
-                fk_p.append(i)
-            fk_fi.append(random.randint(1,len(self._flight_information)))
+        
+        fk_p = np.random.choice(self._passport_details.index.values.tolist(),size=5_000_000)
+        fk_fi = np.random.choice(self._flight_information.index.values.tolist(), size=5_000_000)
 
         data_dict = self._apply_keys(keys, fk_p, fk_fi)
 
@@ -126,13 +131,20 @@ class data_generator:
         return pd.DataFrame(data = data).set_index('TicketID')
 
     def _process_dataframes(self):
-        self._destinations.to_csv('destinations.csv')
-        self._passport_details.to_csv('passport_details.csv')
-        self._flight_information.to_csv('flight_information.csv')
-        self._flight_attendant.to_csv('flight_attendant.csv')
-        self._tickets.to_csv("tickets.csv")
-        self._questionnaireData.to_excel("questionnaireData.xlsx", engine='xlsxwriter')
+        self._destinations.to_csv(f'destinations{self._typeofdata}.csv')
+        self._passport_details.to_csv(f'passport_details{self._typeofdata}.csv')
+        self._flight_information.to_csv(f'flight_information{self._typeofdata}.csv')
+        self._flight_attendant.to_csv(f'flight_attendant{self._typeofdata}.csv')
+        self._tickets.to_csv(f"tickets{self._typeofdata}.csv")
+        #self._questionnaireData.to_xlsx(f"questionnaireData{self._typeofdata}.xlsx", engine='xlsxwriter')
+        self._process_excel(self._questionnaireData)
     
+    def _process_excel(self, df: pd.DataFrame, size=1_000_000):
+
+        with pd.ExcelWriter(f"questionnaireData{self._typeofdata}.xlsx") as writer:
+            for i in range(0, len(df), size):
+                df[i : i+size].to_excel(writer, sheet_name='Row {}'.format(i), index=False, header=True)
+
     @cache
     def _generate_tickets(self):
         '''
@@ -150,9 +162,8 @@ class data_generator:
         
         l = ['a','b','c','d','e','f']   
 
-
         class_ = np.random.choice(a=["First Class", "Business Class", "Economy Class"],
-                                  p = [0.6,0.3,0.1], size = len(df))
+                                  p = [0.1,0.3,0.6], size = len(df))
         
         seats = [l[i%6] for i in range(len(df))]
 
@@ -183,19 +194,21 @@ class data_generator:
         dt_d - dt_a + flight time from _flight_time for given id
         '''
 
-        ids = np.arange(0,1_000_000)
+        size = int(1_000_000 / AVG_PEOPLE_PER_FLIGHT)
+
+        ids = np.arange(0,size)
 
         #generating random dest id
         f_keys = list(self._flight_time.keys())
-        fk_dest = np.random.choice(f_keys, size=1_000_000)
+        fk_dest = np.random.choice(f_keys, size=size)
 
         #generating random airlines 
-        airline = np.random.choice(a=AIRLINES, p=WEIGHTS, size=1_000_000)
+        airline = np.random.choice(a=AIRLINES, p=WEIGHTS, size=size)
 
         
         #dates of departure and arrival
-        dt_d = [self._random_datetime(FLIGHTS_BEGIN,FLIGHTS_END) for x in range(1_000_000)]
-        dt_a = [dt_d[x] + datetime.timedelta(hours = self._flight_time[fk_dest[x]].hour, minutes=self._flight_time[fk_dest[x]].minute) for x in range(1_000_000)]
+        dt_d = [self._random_datetime(self._FLIGHTS_BEGIN,self._FLIGHTS_END) for x in range(size)]
+        dt_a = [dt_d[x] + datetime.timedelta(hours = self._flight_time[fk_dest[x]].hour, minutes=self._flight_time[fk_dest[x]].minute) for x in range(size)]
         
         keys = ['ID','Destination','Airline','Date and time of arrival','Date and time of departure']
         data_dict = self._apply_keys(keys, ids, fk_dest, airline, dt_a, dt_d)
@@ -234,8 +247,8 @@ class data_generator:
         surnames = [elem.strip('\n') for elem in surnames]
 
         #generating dates
-        dob = [self._random_date(BIRTH_BEGIN, BIRTH_END).strftime("%D") for x in range(1_000_000)]
-        exp = [self._random_date(EXP_BEGIN, EXP_END).strftime("%D") for x in range(1_000_000)]
+        dob = [self._random_date(self._BIRTH_BEGIN, self._BIRTH_END).strftime("%D") for x in range(1_000_000)]
+        exp = [self._random_date(self._EXP_BEGIN, self._EXP_END).strftime("%D") for x in range(1_000_000)]
 
         #generating cities
         pob = np.random.choice(cities, size=1_000_000)
