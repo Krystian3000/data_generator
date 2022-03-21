@@ -1,4 +1,3 @@
-from numpy import argsort
 from generator import data_generator
 import sys
 

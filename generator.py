@@ -46,6 +46,7 @@ class data_generator:
             raise ValueError('Incorrect version')
         else:
             self._typeofdata = type_
+            self._size = type_ * 1_000_000
             self._BIRTH_BEGIN = datetime.date(1965,1,1)
             self._EXP_BEGIN = datetime.date(2022,4,1)
             self._FLIGHTS_BEGIN = datetime.datetime.strptime('1/1/1990 1:30 PM', '%m/%d/%Y %I:%M %p')
@@ -194,7 +195,7 @@ class data_generator:
         dt_d - dt_a + flight time from _flight_time for given id
         '''
 
-        size = int(1_000_000 / AVG_PEOPLE_PER_FLIGHT)
+        size = int(self._size / AVG_PEOPLE_PER_FLIGHT)
 
         ids = np.arange(0,size)
 
@@ -234,29 +235,29 @@ class data_generator:
         cities = self._generate_cities()
 
         #generating ids
-        ids = np.arange(0,1_000_000)
+        ids = np.arange(0,self._size)
 
         #generating names
         with open('usf.txt','r') as file:
-            names_ = [file.readline() for x in range(1_000_000)]
+            names_ = [file.readline() for x in range(len(ids))]
 
         with open('uss.txt','r') as file:
-            surnames = [file.readline() for x in range(1_000_000)]
+            surnames = [file.readline() for x in range(len(ids))]
 
         names_ = [elem.strip('\n') for elem in names_]
         surnames = [elem.strip('\n') for elem in surnames]
 
         #generating dates
-        dob = [self._random_date(self._BIRTH_BEGIN, self._BIRTH_END).strftime("%D") for x in range(1_000_000)]
-        exp = [self._random_date(self._EXP_BEGIN, self._EXP_END).strftime("%D") for x in range(1_000_000)]
+        dob = [self._random_date(self._BIRTH_BEGIN, self._BIRTH_END).strftime("%D") for x in range(len(ids))]
+        exp = [self._random_date(self._EXP_BEGIN, self._EXP_END).strftime("%D") for x in range(len(ids))]
 
         #generating cities
-        pob = np.random.choice(cities, size=1_000_000)
-        por = np.random.choice(cities, size=1_000_000)
+        pob = np.random.choice(cities, size=len(ids))
+        por = np.random.choice(cities, size=len(ids))
 
         #rest
-        nat = [pob[x].split(", ")[1] for x in range(1_000_000)]
-        email = [names_[x] + '.' + surnames[x] + "@mail.com" for x in range(1_000_000)]
+        nat = [pob[x].split(", ")[1] for x in range(len(ids))]
+        email = [names_[x] + '.' + surnames[x] + "@mail.com" for x in range(len(ids))]
 
         data_dict = {}
         keys = ['ID','Name','Surname','Day of birth', 'Place of birth', 'Place of residence', 'Nationality', 
